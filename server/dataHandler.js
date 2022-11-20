@@ -162,6 +162,7 @@ async function deleteEmbeddingFromPinecone(namespace, id){
     })
 }
 
+//TODO Promise
 async function deleteAllEmbeddings(namespace){
     const url = process.env.PINECONE_URL + '/vectors/delete';
     axios.post(url, {
@@ -185,18 +186,11 @@ async function deleteAllEmbeddings(namespace){
  */
 async function uploadEmbeddingsToPinecone(embeddings, namespace){
     const url = process.env.PINECONE_URL + '/vectors/upsert';
-    const vectors = []
-    for (const el of embeddings){
-        vectors.push({
-            'id': el.infoID,
-            'values': el.vector
-        });
-    }
     return new Promise(async (resolve, reject) => {
         try {
             const res = await axios.post(
                 url, {
-                    vectors,
+                    'vectors': embeddings,
                     namespace
                 }, {
                     headers: {
@@ -204,10 +198,10 @@ async function uploadEmbeddingsToPinecone(embeddings, namespace){
                         'Api-Key': process.env.PINECONE_API_KEY
                     }
                 });
-            console.log(res);
+            resolve(res);
         } catch (e) {
             console.log(e);
-            reject(e);
+            reject("Error while uploading embedding to Pinecone!");
         }
     })
 }
@@ -276,13 +270,15 @@ async function createEmbeddingAndUpload(infoData, namespace){
             })
             .then((vector) => {
                 const embedding = {
-                    'infoID': infoData.infoID,
-                    vector
+                    'id': infoData.infoID,
+                    'values': vector,
+                    'metadata': {
+                        'heading': infoData.heading
+                    }
                 };
-                uploadEmbeddingsToPinecone([embedding], namespace);
+                return uploadEmbeddingsToPinecone([embedding], namespace);
             })
             .catch((e) => {
-                console.log(e);
                 return reject("Error: Embedding upload failed: \n" + e);
             })
             .then(() => {
@@ -301,14 +297,15 @@ async function createAndUploadEmbeddingFromDbEntry(infoID){
             return resolve('Embedding exists already.');
         }
         createEmbeddingAndUpload(infoData, infoData.namespace)
+            .then(() => {
+                setHasEmbeddingsStatus(infoID, true);
+                resolve(`Information (${infoID}) has an uploaded embedding now.`)
+            })
             .catch((e) => {
                 console.log(e);
                 return reject(e);
             })
-            .then(() => {
-                setHasEmbeddingsStatus(infoID, true);
-                resolve(`Information (${infoID}) has an uploaded embedding now.`)
-            });
+
     })
 }
 
@@ -386,5 +383,6 @@ export {
     storeInfoToDB,
     getInformation,
     deleteInformation,
-    createAndUploadEmbeddingFromDbEntry
+    createAndUploadEmbeddingFromDbEntry,
+    deleteAllEmbeddings
 }

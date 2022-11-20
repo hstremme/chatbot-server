@@ -13,7 +13,7 @@ const openai = new OpenAIApi(configuration);
 const COMPLETIONS_MODEL = "text-davinci-002";
 
 // OpenAI model name that will be used for embeddings
-const EMBEDDINGS_MODEL_NAME = "babbage"; //2048
+const EMBEDDINGS_MODEL_NAME = "curie"; //4096
 const DOC_EMBDDINGS_MODEL = `text-search-${EMBEDDINGS_MODEL_NAME}-doc-001`;
 const QUERY_EMBDDINGS_MODEL = `text-search-${EMBEDDINGS_MODEL_NAME}-query-001`;
 
@@ -86,7 +86,8 @@ async function getSimilarEmbeddingsFromPinecone(embedding, namespace, count){
             url, {
                 namespace,
                 'topK': count,
-                'vector': embedding
+                'vector': embedding,
+                'includeMetadata': true
             }, {
                 headers: {
                     'Content-Type': 'application/json',
@@ -99,43 +100,42 @@ async function getSimilarEmbeddingsFromPinecone(embedding, namespace, count){
     }
 }
 
-/**
- * Constructs a prompt for a question that contains the context for the question and can be used for the openAI completions endpoint
- * @param question String of the question that the prompt will be constructed for
- * @returns {Promise<string>} String Prompt
- */
-async function constructPrompt(question){
-    const SIMILAR_COUNT = 10;
-    const SEPARATOR = "\n* ";
-    const MAX_TOKENS = 500;
-
-    const questionEmbedding = await computeQueryEmbedding(question);
-    const similarEmbeddings = await getSimilarEmbeddingsFromPinecone(questionEmbedding, openAiSelectedNamespace, SIMILAR_COUNT);
-
-    var chosenInformation = [];
-    var chosenInformationLength = 0;
-    var chosenInformationHeading = [];
-
-    const separatorLength = encode(SEPARATOR).length;
-
-    for (const el of similarEmbeddings){
-        const infoRaw = await Information.find({'infoID': el.id, namespace: openAiSelectedNamespace});
-        if (infoRaw.length == 0) {
-            continue;
-        }
-        const info = infoRaw[0];
-        chosenInformationLength += encode(info.content).length + separatorLength;
-        if (chosenInformationLength > MAX_TOKENS){
-            break;
-        }
-
-        chosenInformation.push(SEPARATOR + info.content.replace("\n", " "));
-        chosenInformationHeading.push(info.heading);
-    }
-
-    const header = 'Answer the question as truthfully as possible using the provided context, and if the answer is not contained within the text below, say "I don\'t know." \n\n Context: \n';
-
-    return header + chosenInformation.join('') + '\n\n Q: ' + question + '\n A:'
+async function createContextPrompt(questionEmbedding, namespace, config){
+    return new Promise(async (resolve, reject) => {
+       try {
+           const embeddingsFromPinecone = await getSimilarEmbeddingsFromPinecone(questionEmbedding, namespace, config.similarCount);
+           if (embeddingsFromPinecone.length === 0){
+               return reject ("No similar Embeddings where found in the given namespace.");
+           }
+           let chosenInformation = [];
+           let chosenInformationLength = 0;
+           let chosenInformationHeading = [];
+           const separatorLength = encode(config.separator).length;
+           for (const el of embeddingsFromPinecone){
+               if (el.score < config.similarMinScore){
+                   continue;
+               }
+               const infoRaw = await Information.find({'infoID': el.id, namespace: openAiSelectedNamespace});
+               if (infoRaw.length == 0) {
+                   continue;
+               }
+               const info = infoRaw[0];
+               chosenInformationLength += encode(info.content).length + separatorLength;
+               if (chosenInformationLength > config.maxTokens){
+                   break;
+               }
+               chosenInformation.push(config.separator + info.content.replace("\n", " "));
+               chosenInformationHeading.push(info.heading);
+           }
+           if (chosenInformation.length === 0){
+               return reject({'code': 100, 'message': "No context found."})
+           }
+           resolve({ 'asString': chosenInformation.join(''), 'heading': chosenInformationHeading });
+        } catch (e) {
+            console.log(e);
+            reject({'code': 200, 'message': e });
+       }
+    });
 }
 
 /**
@@ -145,19 +145,32 @@ async function constructPrompt(question){
  * @returns {Promise<string>} Returns the answer as a string
  */
 export async function answerQueryWithContext(query, showPrompt=false){
-    const prompt = await constructPrompt(query);
-    if (showPrompt){
-        console.log(prompt);
+    const config = {
+        'similarCount': 10,
+        'similarMinScore': 0.3,
+        'separator': '\n*',
+        'maxTokens': 500
     }
-    const response = await openai.createCompletion({
-        model: COMPLETIONS_MODEL,
-        prompt,
-        max_tokens: 300,
-        temperature: 0.0
+    return new Promise(async (resolve, reject) => {
+        try {
+            const queryEmbedding = await computeQueryEmbedding(query);
+            const context = await createContextPrompt(queryEmbedding, openAiSelectedNamespace, config);
+            const headerString =
+                'Answer the question as truthfully as possible using the provided context, and if the answer is not contained within the text below, say "I don\'t know." \n\n Context: \n';
+            const prompt = headerString + context.asString + '\n\n Q: ' + query + '\n A:';
+            const response = await openai.createCompletion({
+                model: COMPLETIONS_MODEL,
+                prompt,
+                max_tokens: 300,
+                temperature: 0.0
+            });
+            resolve(response.data.choices[0].text);
+        } catch (e) {
+            if (e.code && e.code === 100){
+                resolve("There is no context.");
+            } else {
+                reject(e);
+            }
+        }
     });
-    return response.data.choices[0].text;
-}
-
-export function test(){
-    console.log(process.env.OPENAI_API_KEY);
 }

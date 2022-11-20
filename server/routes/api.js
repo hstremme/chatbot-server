@@ -9,7 +9,8 @@ import {
     storeInfoToDB,
     getInformation,
     deleteInformation,
-    createAndUploadEmbeddingFromDbEntry
+    createAndUploadEmbeddingFromDbEntry,
+    deleteAllEmbeddings
 } from "../dataHandler.js";
 
 const router = express.Router();
@@ -18,19 +19,21 @@ const router = express.Router();
 router.post('/question', async (req, res) => {
     const knowledgebase = req.query.kbase;
     const question = req.body.question;
-    console.log(question);
     switch (knowledgebase){
         case "openAI":
-            const questionInEnglish = await translateTextToEnglish(question);
-            const answerInEnglish = await answerQueryWithContext(questionInEnglish);
-            const answer = await  translateTextToGerman(answerInEnglish);
-            res.send(answer)
+            try {
+                const questionInEnglish = await translateTextToEnglish(question);
+                const answerInEnglish = await answerQueryWithContext(questionInEnglish, true);
+                const answer = await  translateTextToGerman(answerInEnglish);
+                res.send(answer)
+            } catch (e) {
+                res.status(500).send();
+            }
             break
         default:
             res.send("no KB defined")
             break
     }
-    console.log("Selected KB: " + knowledgebase)
 })
 
 // GET Namespaces
@@ -129,6 +132,17 @@ router.post('/data/embedding', async (req, res) => {
     try {
         const response = await createAndUploadEmbeddingFromDbEntry(req.query.infoID);
         res.status(200).send(response);
+    } catch (e) {
+        console.log(e);
+        res.status(500).send(e);
+    }
+});
+
+// DELETE Embedding
+router.delete('/data/embedding', async (req, res) => {
+    try {
+        const response = await deleteAllEmbeddings(req.query.namespace);
+        res.send(response);
     } catch (e) {
         console.log(e);
         res.status(500).send(e);
