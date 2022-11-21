@@ -1,6 +1,7 @@
 import express from "express";
 import {translateTextToEnglish, translateTextToGerman} from "../translator.js";
 import {answerQueryWithContext} from "../kbOpenAI.js";
+import {createSessionCookie} from "../sessionHandler.js";
 import {
     getNamespaces,
     addNamespace,
@@ -21,10 +22,13 @@ router.post('/question', async (req, res) => {
     const question = req.body.question;
     switch (knowledgebase){
         case "openAI":
+            console.log(createSessionCookie());
+            console.log(req.cookies)
             try {
                 const questionInEnglish = await translateTextToEnglish(question);
                 const answerInEnglish = await answerQueryWithContext(questionInEnglish, true);
                 const answer = await  translateTextToGerman(answerInEnglish);
+                //res.cookie('test', 'one', {sameSite: 'none', secure: true}).send(answer)
                 res.send(answer)
             } catch (e) {
                 res.status(500).send();
