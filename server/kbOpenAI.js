@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Information } from './models/information.js'
 import { encode } from 'gpt-3-encoder'
 import { openAiSelectedNamespace } from "./config/kbConfig.js";
+import {getDialogHistoryEnglish} from "./sessionHandler.js";
 
 const configuration = new Configuration({
     apiKey: process.env.OPENAI_API_KEY,
@@ -156,7 +157,7 @@ export async function answerQueryWithContext(query, showPrompt=false){
             const queryEmbedding = await computeQueryEmbedding(query);
             const context = await createContextPrompt(queryEmbedding, openAiSelectedNamespace, config);
             const headerString =
-                'Answer the question as truthfully as possible using the provided context, and if the answer is not contained within the text below, say "I don\'t know." \n\n Context: \n';
+                'Answer the question as truthfully as possible using the provided context, and if the answer is not contained within the text below, say "I don\'t know." \n\n Context: \nAnswer the question as truthfully as possible using the provided context, and if the answer is not contained within the text below, say "I don\'t know." \n\n Context: \n';
             const prompt = headerString + context.asString + '\n\n Q: ' + query + '\n A:';
             const response = await openai.createCompletion({
                 model: COMPLETIONS_MODEL,
@@ -164,7 +165,61 @@ export async function answerQueryWithContext(query, showPrompt=false){
                 max_tokens: 300,
                 temperature: 0.0
             });
-            resolve(response.data.choices[0].text);
+            resolve(response.data.choices[0].text.trim());
+        } catch (e) {
+            if (e.code && e.code === 100){
+                resolve("There is no context.");
+            } else {
+                reject(e);
+            }
+        }
+    });
+}
+
+async function createDialogHistoryPrompt(sessionId){
+    return new Promise(async (resolve, reject) => {
+      try {
+          const history = await getDialogHistoryEnglish(sessionId);
+          if (history.length === 0){
+              return resolve('');
+          }
+          let dialogPrompt = [];
+          for (const dialog of history){
+              const dialogString = `\n\nQ: ${dialog.question}\nA: ${dialog.answer}`;
+              dialogPrompt.push(dialogString);
+          }
+          resolve(dialogPrompt.join(''));
+      } catch (e) {
+          reject(e);
+      }
+    })
+}
+
+export async function answerQueryWithContextAndHistory(query, showPrompt=true, sessionId){
+    const config = {
+        'similarCount': 10,
+        'similarMinScore': 0.3,
+        'separator': '\n*',
+        'maxTokens': 500
+    }
+    return new Promise(async (resolve, reject) => {
+        try {
+            const queryEmbedding = await computeQueryEmbedding(query);
+            const context = await createContextPrompt(queryEmbedding, openAiSelectedNamespace, config);
+            const dialogHistoryString = await createDialogHistoryPrompt(sessionId);
+            const headerString =
+                'Answer the question as truthfully as possible using the provided context, and if the answer is not contained within the text below, say "I don\'t know." \n\n Context: \nAnswer the question as truthfully as possible using the provided context, and if the answer is not contained within the text below, say "I don\'t know." \n\n Context: \n';
+            const prompt = headerString + context.asString + dialogHistoryString + '\n\n Q: ' + query + '\n A:';
+            const response = await openai.createCompletion({
+                model: COMPLETIONS_MODEL,
+                prompt,
+                max_tokens: 300,
+                temperature: 0.0
+            });
+            if (showPrompt){
+                console.log(prompt);
+            }
+            resolve(response.data.choices[0].text.trim());
         } catch (e) {
             if (e.code && e.code === 100){
                 resolve("There is no context.");

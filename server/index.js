@@ -11,7 +11,8 @@ const app = express();
 app.use(bodyParser.json());
 app.use(cors({
     origin: 'http://127.0.0.1:5173',
-    credentials: true
+    credentials: true,
+    exposedHeaders: ["set-cookie"],
 }));
 app.use(cookieParser());
 app.use('/api', api);

@@ -1,7 +1,7 @@
 import express from "express";
 import {translateTextToEnglish, translateTextToGerman} from "../translator.js";
-import {answerQueryWithContext} from "../kbOpenAI.js";
-import {createSessionCookie} from "../sessionHandler.js";
+import {answerQueryWithContext, answerQueryWithContextAndHistory} from "../kbOpenAI.js";
+import {addDialog, getDialogHistoryGerman} from "../sessionHandler.js";
 import {
     getNamespaces,
     addNamespace,
@@ -22,14 +22,19 @@ router.post('/question', async (req, res) => {
     const question = req.body.question;
     switch (knowledgebase){
         case "openAI":
-            console.log(createSessionCookie());
-            console.log(req.cookies)
             try {
                 const questionInEnglish = await translateTextToEnglish(question);
-                const answerInEnglish = await answerQueryWithContext(questionInEnglish, true);
+                //const answerInEnglish = await answerQueryWithContext(questionInEnglish, true);
+                const answerInEnglish = await answerQueryWithContextAndHistory(questionInEnglish, true, req.body.sessionId);
                 const answer = await  translateTextToGerman(answerInEnglish);
-                //res.cookie('test', 'one', {sameSite: 'none', secure: true}).send(answer)
-                res.send(answer)
+                res.send({answer})
+                await addDialog({
+                    'question': questionInEnglish,
+                    'answer': answerInEnglish
+                }, {
+                    question,
+                    answer
+                }, req.body.sessionId, req.body.dialogCount);
             } catch (e) {
                 res.status(500).send();
             }
@@ -150,6 +155,17 @@ router.delete('/data/embedding', async (req, res) => {
     } catch (e) {
         console.log(e);
         res.status(500).send(e);
+    }
+})
+
+// GET Dialog
+router.get('/session/dialog', async (req, res) => {
+    try {
+        const data = await getDialogHistoryGerman(req.query.sessionId);
+        res.send(data);
+    } catch (e) {
+        console.log(e);
+        res.sendStatus(500);
     }
 })
 
