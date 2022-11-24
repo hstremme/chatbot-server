@@ -9,11 +9,7 @@ import cookieParser from 'cookie-parser';
 const app = express();
 
 app.use(bodyParser.json());
-app.use(cors({
-    origin: 'http://127.0.0.1:5173',
-    credentials: true,
-    exposedHeaders: ["set-cookie"],
-}));
+app.use(cors());
 app.use(cookieParser());
 app.use('/api', api);
 await connectDB;
