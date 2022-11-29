@@ -13,6 +13,7 @@ import {
     createAndUploadEmbeddingFromDbEntry,
     deleteAllEmbeddings
 } from "../dataHandler.js";
+import KbAzure from "../kbAzure.js";
 
 const router = express.Router();
 
@@ -37,6 +38,20 @@ router.post('/question', async (req, res) => {
                 }, req.body.sessionId, req.body.dialogCount);
             } catch (e) {
                 res.status(500).send();
+            }
+            break
+        case "azure":
+            try {
+                let answer
+                if (req.body.qnaId){
+                    answer = await KbAzure.getQuestionPairById(req.body.qnaId);
+                } else {
+                    answer = await KbAzure.getAnswer(req.body.question);
+                }
+                res.send(answer);
+            } catch (e){
+                console.log(e);
+                res.sendStatus(500);
             }
             break
         default:
