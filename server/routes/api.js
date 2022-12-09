@@ -45,13 +45,24 @@ router.post('/question', async (req, res) => {
                 let answer
                 if (req.body.qnaId){
                     answer = await KbAzure.getQuestionPairById(req.body.qnaId);
+                    res.send(answer);
                 } else {
                     answer = await KbAzure.getAnswer(req.body.question);
+                    res.send(answer);
+                    await addDialog(
+                        {question: req.body.question, answer: answer.answer},
+                        {question: req.body.question, answer: answer.answer},
+                        req.body.sessionId,
+                        req.body.dialogCount,
+                        answer.prompts);
                 }
-                res.send(answer);
             } catch (e){
-                console.log(e);
-                res.sendStatus(500);
+                if (e.code === 1){
+                    res.sendStatus(208);
+                } else {
+                    console.log(e);
+                    res.sendStatus(500);
+                }
             }
             break
         default:

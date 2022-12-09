@@ -1,4 +1,6 @@
 import axios from "axios";
+import {Source} from "./models/source.js";
+import {confidenceMin} from "./config/kbConfig.js";
 
 class KbAzure{
 
@@ -24,14 +26,19 @@ class KbAzure{
                     params: this.params
                 });
                 const firstAnswer = res.data.answers[0];
+                if (firstAnswer.confidenceScore < confidenceMin){
+                    return reject({code: 1, message: 'No fitting answer found.'})
+                }
+                const source = await getSourceByAbbreviation(firstAnswer.metadata.source);
                 const data = {
                     'answer': firstAnswer.answer,
-                    'prompts': firstAnswer.dialog.prompts
+                    'prompts': firstAnswer.dialog.prompts,
+                    source
                 }
                 resolve(data);
             } catch (e) {
                 console.log(e);
-                reject();
+                reject({code: 2, message: 'Error: ' + e});
             }
         })
     }
@@ -50,9 +57,11 @@ class KbAzure{
                     params: this.params
                 });
                 const firstAnswer = res.data.answers[0];
+                const source = await getSourceByAbbreviation(firstAnswer.metadata.source);
                 const data = {
                     'answer': firstAnswer.answer,
-                    'question': firstAnswer.questions[0]
+                    'question': firstAnswer.questions[0],
+                    source
                 }
                 resolve (data);
             } catch (e) {
@@ -61,6 +70,18 @@ class KbAzure{
             }
         })
     }
+}
+
+async function getSourceByAbbreviation(abr){
+    return new Promise(async (resolve, reject) => {
+        try {
+            const res = await Source.findOne({abbreviation: abr}, "-_id link_text link_url").exec();
+            resolve(res);
+        } catch (e) {
+            console.log(e);
+            reject();
+        }
+    });
 }
 
 export default KbAzure;

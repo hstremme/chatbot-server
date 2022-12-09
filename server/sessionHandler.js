@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import {Dialog} from "./models/dialog.js";
 
-export async function addDialog(dialog_en, dialog_de, sessionId, count){
+export async function addDialog(dialog_en, dialog_de, sessionId, count, prompt){
     const dialog = new Dialog({
         'sessionId': sessionId,
         'count': count,
@@ -9,6 +9,7 @@ export async function addDialog(dialog_en, dialog_de, sessionId, count){
         'answer': dialog_en.answer,
         'question_de': dialog_de.question,
         'answer_de': dialog_de.answer,
+        prompt
     });
     dialog.save();
     return dialog.id;
@@ -18,7 +19,7 @@ async function getDialogHistory(sessionId, language){
     try {
         let res = null;
         if (language === 'german'){
-            res = await Dialog.find({sessionId: sessionId}, 'count question_de answer_de').exec();
+            res = await Dialog.find({sessionId: sessionId}, 'count question_de answer_de prompt').exec();
         } else if (language === 'english'){
             res = await Dialog.find({sessionId: sessionId}, 'count question answer').exec();
         }

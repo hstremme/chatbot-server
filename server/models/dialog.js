@@ -10,11 +10,9 @@ const dialogSchema = new mongoose.Schema({
     },
     question: {
         type: String,
-        required: true
     },
     answer: {
         type: String,
-        required: true
     },
     question_de: {
         type: String,
@@ -23,6 +21,9 @@ const dialogSchema = new mongoose.Schema({
     answer_de: {
         type: String,
         required: true
+    },
+    prompt: {
+        type: Array
     }
     },
     {timestamps: true});
