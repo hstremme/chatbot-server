@@ -54,11 +54,19 @@ router.post('/question', async (req, res) => {
                         {question: req.body.question, answer: answer.answer},
                         req.body.sessionId,
                         req.body.dialogCount,
-                        answer.prompts);
+                        answer.prompts,
+                        false);
                 }
             } catch (e){
                 if (e.code === 1){
                     res.sendStatus(208);
+                    await addDialog(
+                        {question: req.body.question, answer: "Es wurde keine passende Antwort gefunden."},
+                        {question: req.body.question, answer: "Es wurde keine passende Antwort gefunden."},
+                        req.body.sessionId,
+                        req.body.dialogCount,
+                        null,
+                        true);
                 } else {
                     console.log(e);
                     res.sendStatus(500);

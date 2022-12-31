@@ -24,6 +24,9 @@ const dialogSchema = new mongoose.Schema({
     },
     prompt: {
         type: Array
+    },
+    isNoAnswer: {
+        type: Boolean
     }
     },
     {timestamps: true});
