@@ -1,6 +1,5 @@
 import axios from "axios";
 import {Source} from "./models/source.js";
-import {confidenceMin} from "./config/kbConfig.js";
 
 class KbAzure{
 
@@ -19,7 +18,7 @@ class KbAzure{
                     }
                 });
                 const firstAnswer = res.data.answers[0];
-                if (firstAnswer.confidenceScore < confidenceMin){
+                if (firstAnswer.confidenceScore < process.env.CONFIDENCE_THRESHOLD){
                     return reject({code: 1, message: 'No fitting answer found.'})
                 }
                 const source = await getSourceByAbbreviation(firstAnswer.metadata.source);

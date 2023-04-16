@@ -3,7 +3,6 @@ import bodyParser from "body-parser";
 import { connectDB } from './config/db.js'
 import { api } from "./routes/api.js";
 import cors from 'cors';
-import {openAiSelectedNamespace,updateSelectedNamespace} from "./config/kbConfig.js";
 import cookieParser from 'cookie-parser';
 
 const app = express();
@@ -13,7 +12,6 @@ app.use(cors());
 app.use(cookieParser());
 app.use('/api', api);
 await connectDB;
-await updateSelectedNamespace();
 
 const port = process.env.PORT;
 
